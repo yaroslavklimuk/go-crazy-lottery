@@ -1,0 +1,31 @@
+{{template "base" .}}
+
+{{define "title"}}Register{{end}}
+
+{{define "body"}}
+<form action="/register" method="post">
+    <div class="container">
+        <h1>Register</h1>
+        <hr>
+
+        <label for="login"><b>Login</b></label>
+        <input type="text" placeholder="Enter login" name="login" id="login" required>
+
+        <label for="psw"><b>Password</b></label>
+        <input type="password" placeholder="Enter password" name="psw" id="psw" required>
+
+        <label for="banc_acc"><b>Bank Account No</b></label>
+        <input type="text" placeholder="Enter bank account number" name="banc_acc" id="banc_acc" required>
+
+        <label for="address"><b>Address</b></label>
+        <input type="text" placeholder="Enter address" name="address" id="address" required>
+
+        <hr>
+        <button type="submit" class="registerbtn">Register</button>
+    </div>
+
+    <div class="container signin">
+        <p>Already have an account? <a href="/login">Sign in</a>.</p>
+    </div>
+</form>
+{{end}}
