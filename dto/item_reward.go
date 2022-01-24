@@ -3,14 +3,14 @@ package dto
 type (
 	ItemRewardType string
 	ItemReward     interface {
-		GetId() uint
-		SetId(id uint)
+		GetId() int64
+		SetId(id int64)
 		GetType() ItemRewardType
 		IsSent() bool
 	}
 
 	itemRewardImpl struct {
-		Id   uint
+		Id   int64
 		Type ItemRewardType
 		Sent bool
 	}
@@ -21,11 +21,11 @@ const (
 	CrutchItem  ItemRewardType = "crutch"
 )
 
-func (m itemRewardImpl) GetId() uint {
+func (m itemRewardImpl) GetId() int64 {
 	return m.Id
 }
 
-func (m *itemRewardImpl) SetId(id uint) {
+func (m *itemRewardImpl) SetId(id int64) {
 	m.Id = id
 }
 
@@ -35,4 +35,12 @@ func (m itemRewardImpl) GetType() ItemRewardType {
 
 func (m itemRewardImpl) IsSent() bool {
 	return m.Sent
+}
+
+func NewItemReward(itemType ItemRewardType, sent bool, id int64) ItemReward {
+	return &itemRewardImpl{
+		Id:   id,
+		Type: itemType,
+		Sent: sent,
+	}
 }

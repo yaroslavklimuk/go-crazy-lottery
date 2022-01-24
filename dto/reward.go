@@ -3,15 +3,17 @@ package dto
 type (
 	RewardType string
 	Reward     interface {
-		GetId() uint
-		SetId(id uint)
-		GetRewardId() uint
+		GetId() int64
+		SetId(id int64)
+		GetUserId() int64
+		GetRewardId() int64
 		GetType() RewardType
 	}
 
 	rewardImpl struct {
-		Id       uint
-		RewardId uint
+		Id       int64
+		UserId   int64
+		RewardId int64
 		Type     RewardType
 	}
 )
@@ -21,15 +23,19 @@ const (
 	Item  RewardType = "item"
 )
 
-func (r rewardImpl) GetId() uint {
+func (r rewardImpl) GetId() int64 {
 	return r.Id
 }
 
-func (r *rewardImpl) SetId(id uint) {
+func (r *rewardImpl) SetId(id int64) {
 	r.Id = id
 }
 
-func (r rewardImpl) GetRewardId() uint {
+func (r rewardImpl) GetUserId() int64 {
+	return r.UserId
+}
+
+func (r rewardImpl) GetRewardId() int64 {
 	return r.RewardId
 }
 

@@ -2,31 +2,39 @@ package dto
 
 type (
 	MoneyReward interface {
-		GetId() uint
-		SetId(id uint)
-		GetAmount() int
+		GetId() int64
+		SetId(id int64)
+		GetAmount() int64
 		IsSent() bool
 	}
 
 	moneyRewardImpl struct {
-		Id     uint
-		Amount int
+		Id     int64
+		Amount int64
 		Sent   bool
 	}
 )
 
-func (m moneyRewardImpl) GetId() uint {
+func (m moneyRewardImpl) GetId() int64 {
 	return m.Id
 }
 
-func (m *moneyRewardImpl) SetId(id uint) {
+func (m *moneyRewardImpl) SetId(id int64) {
 	m.Id = id
 }
 
-func (m moneyRewardImpl) GetAmount() int {
+func (m moneyRewardImpl) GetAmount() int64 {
 	return m.Amount
 }
 
 func (m moneyRewardImpl) IsSent() bool {
 	return m.Sent
+}
+
+func NewMoneyReward(amount int64, sent bool, id int64) MoneyReward {
+	return &moneyRewardImpl{
+		Id:     id,
+		Amount: amount,
+		Sent:   sent,
+	}
 }

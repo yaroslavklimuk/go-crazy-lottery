@@ -1,6 +1,7 @@
 package server
 
 import (
+	"html/template"
 	"net/http"
 )
 
@@ -13,7 +14,7 @@ type (
 func handleIndexRequest(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case "GET":
-		writer.Header().Set("Content-Type", "text/html")
+		renderTemplate("./templates/index.html", writer, nil)
 	default:
 		http.Error(writer, "Sorry, only GET requests are supported.", 405)
 		return
@@ -27,10 +28,12 @@ func handleRegisterRequest(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	switch request.Method {
+	case "GET":
+		renderTemplate("./templates/register.html", writer, nil)
 	case "POST":
-		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Content-Type", "text/html")
 	default:
-		http.Error(writer, "Sorry, only POST requests are supported.", 405)
+		http.Error(writer, "Sorry, only GET or POST requests are supported.", 405)
 		return
 	}
 }
@@ -42,11 +45,27 @@ func handleLoginRequest(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	switch request.Method {
+	case "GET":
+		renderTemplate("./templates/login.html", writer, nil)
 	case "POST":
 		writer.Header().Set("Content-Type", "application/json")
 	default:
-		http.Error(writer, "Sorry, only POST requests are supported.", 405)
+		http.Error(writer, "Sorry, only GET or POST requests are supported.", 405)
 		return
+	}
+}
+
+func renderTemplate(templName string, writer http.ResponseWriter, data interface{}) {
+	writer.Header().Set("Content-Type", "text/html")
+	ts, err := template.ParseFiles(templName)
+	if err != nil {
+		http.Error(writer, "Internal Server Error", 500)
+		return
+	}
+
+	err = ts.Execute(writer, nil)
+	if err != nil {
+		http.Error(writer, "Internal Server Error", 500)
 	}
 }
 

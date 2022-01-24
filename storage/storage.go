@@ -4,19 +4,19 @@ import "github.com/yaroslavklimuk/crazy-lottery/dto"
 
 type (
 	Storage interface {
-		StoreSession() error
-		CheckSession(token string) (bool, error)
+		StoreSession(dto.Session) error
+		GetSession(token string) (dto.Session, error)
 
-		GetUserMoneyRewards(userId uint) (float32, float32, error)
+		GetUserMoneyRewards(userId int64) (int64, error)
 		StoreUserMoney(base dto.Reward, money dto.MoneyReward) error
 
-		GetUserItemRewards(userId uint) (uint, error)
+		GetUserItemRewards(userId int64) (int64, error)
 		StoreUserItem(base dto.Reward, item dto.ItemReward) error
 
 		GetUnprocessedMoneyRewards() ([]dto.MoneyReward, error)
-		SetMoneyRewardsProcessed(ids []uint) error
+		SetMoneyRewardsProcessed(ids []int64) error
 
 		GetUnprocessedItemsRewards() ([]dto.ItemReward, error)
-		SetItemsRewardsProcessed(ids []uint) error
+		SetItemsRewardsProcessed(ids []int64) error
 	}
 )
