@@ -1,16 +1,17 @@
 package server
 
 import (
+	"github.com/yaroslavklimuk/crazy-lottery/storage"
 	"log"
 	"net/http"
 )
 
-func RegisterRoutes() {
-	http.HandleFunc("/register", handleRegisterRequest)
-	http.HandleFunc("/login", handleLoginRequest)
-	http.HandleFunc("/get-reward", checkAuthMiddleware(handleRewardRequest))
-	http.HandleFunc("/submit-reward", checkAuthMiddleware(handleSubmitRewardRequest))
-	http.HandleFunc("/", handleIndexRequest)
+func RegisterRoutes(st storage.Storage) {
+	http.HandleFunc("/register", makeRegisterHandler(st).ServeHTTP)
+	http.HandleFunc("/login", makeLoginHandler(st).ServeHTTP)
+	http.HandleFunc("/get-reward", checkAuthMiddleware(makeGetRewardHandler(st).ServeHTTP))
+	http.HandleFunc("/submit-reward", checkAuthMiddleware(makeSubmitRewardHandler(st).ServeHTTP))
+	http.HandleFunc("/", checkAuthMiddleware(makeIndexHandler(st).ServeHTTP))
 }
 
 func RunServer() {
