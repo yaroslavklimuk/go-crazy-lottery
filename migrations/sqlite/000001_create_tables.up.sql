@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id integer primary key,
     name varchar(255) unique,
+    passwd varchar(255) not null,
     banc_acc varchar(255) not null,
     address varchar(255) not null,
     balance integer not null

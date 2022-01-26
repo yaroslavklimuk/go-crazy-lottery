@@ -72,7 +72,7 @@ func (s *sqliteStorageImpl) GetUserMoneyRewards(userId int64) (int64, error) {
 	return amount, nil
 }
 
-func (s *sqliteStorageImpl) StoreUserMoney(base dto.Reward, money dto.MoneyReward) error {
+func (s *sqliteStorageImpl) StoreUserMoneyReward(base dto.Reward, money dto.MoneyReward) error {
 	stmtMoney, err := s.conn.Prepare("INSERT INTO money_rewards (amount) VALUES (?)")
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ func (s *sqliteStorageImpl) GetUserItemRewards(userId int64) (int64, error) {
 	return count, nil
 }
 
-func (s *sqliteStorageImpl) StoreUserItem(base dto.Reward, item dto.ItemReward) error {
+func (s *sqliteStorageImpl) StoreUserItemReward(base dto.Reward, item dto.ItemReward) error {
 	stmtItem, err := s.conn.Prepare("INSERT INTO item_rewards (type) VALUES (?)")
 	if err != nil {
 		return err
@@ -185,4 +185,41 @@ func (s *sqliteStorageImpl) SetItemsRewardsProcessed(ids []int64) error {
 		}
 	}
 	return nil
+}
+
+func (s *sqliteStorageImpl) StoreUser(user dto.User) (int64, error) {
+	stmt, err := s.conn.Prepare(
+		"INSERT INTO users (name, passwd, banc_acc, address, balance) VALUES (?, ?, ?, ?, ?)",
+	)
+	if err != nil {
+		return 0, err
+	}
+	res, err := stmt.Exec(user.GetName(), user.GetPswdHash(), user.GetBankAcc(), user.GetAddress(), 0)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	return id, err
+}
+
+func (s *sqliteStorageImpl) GetUserById(id int64) (dto.User, error) {
+	row := s.conn.QueryRow("SELECT name, passwd, banc_acc, address, balance FROM users WHERE id = ?", id)
+	var name, passwd, bancAcc, address string
+	var balance int64
+	err := row.Scan(&name, &passwd, &bancAcc, &address, &balance)
+	if err != nil {
+		return nil, err
+	}
+	return dto.NewUser(id, name, bancAcc, address, balance, passwd), nil
+}
+
+func (s *sqliteStorageImpl) GetUserByName(name string) (dto.User, error) {
+	row := s.conn.QueryRow("SELECT id, passwd, banc_acc, address, balance FROM users WHERE name = ?", name)
+	var passwd, bancAcc, address string
+	var id, balance int64
+	err := row.Scan(&id, &passwd, &bancAcc, &address, &balance)
+	if err != nil {
+		return nil, err
+	}
+	return dto.NewUser(id, name, bancAcc, address, balance, passwd), nil
 }
