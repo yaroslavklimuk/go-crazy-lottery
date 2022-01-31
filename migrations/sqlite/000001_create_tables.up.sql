@@ -7,27 +7,31 @@ CREATE TABLE IF NOT EXISTS users (
     balance integer not null
 );
 
-CREATE TABLE IF NOT EXISTS rewards (
-    id integer primary key,
-    user_id integer not null,
-    reward_id integer not null,
-    type varchar(20) not null
-);
-
 CREATE TABLE IF NOT EXISTS money_rewards (
     id integer primary key,
+    user_id integer not null,
     amount integer not null,
-    sent integer default 0
+    sent integer default 0,
+    CONSTRAINT fk_users
+        FOREIGN KEY (user_id)
+            REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS item_rewards (
     id integer primary key,
+    user_id integer not null,
     type varchar(30) not null,
-    sent integer default 0
+    sent integer default 0,
+    CONSTRAINT fk_users
+        FOREIGN KEY (user_id)
+            REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
     token varchar(255) primary key,
     user_id integer not null,
-    expired_at integer not null
+    expired_at integer not null,
+    CONSTRAINT fk_users
+        FOREIGN KEY (user_id)
+            REFERENCES users(id)
 );

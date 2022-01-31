@@ -2,9 +2,21 @@ package storage
 
 import (
 	"database/sql"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/yaroslavklimuk/crazy-lottery/dto"
 	"reflect"
 	"testing"
+)
+
+type (
+	testSessionDto struct {
+		Token     string
+		UserId    int64
+		ExpiredAt int64
+	}
 )
 
 func TestGetStorage(t *testing.T) {
@@ -86,37 +98,94 @@ func Test_createSqliteStorage(t *testing.T) {
 }
 
 func Test_sqliteStorageImpl_GetSession(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
 	type args struct {
 		token string
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
-		want    dto.Session
+		want    testSessionDto
 		wantErr bool
 	}{
 		// TODO: Add test cases.
+		{
+			name: "first case",
+			args: args{
+				token: "f49574895f48f45f4f4545",
+			},
+			want: testSessionDto{
+				Token:     "f49574895f48f45f4f4545",
+				UserId:    1234,
+				ExpiredAt: 23435345,
+			},
+			wantErr: false,
+		},
 	}
+
+	dbFile := "../lottery_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file:///../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	insertStmt, err := conn.Prepare("INSERT INTO sessions (token, user_id, expired_at) VALUES (?, ?, ?)")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		_, err = insertStmt.Exec(tt.want.Token, tt.want.UserId, tt.want.ExpiredAt)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
 		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			got, err := s.GetSession(tt.args.token)
+			got, err := sqliteStorage.GetSession(tt.args.token)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetSession() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetSession() got = %v, want %v", got, tt.want)
+			if got.GetToken() != tt.want.Token {
+				t.Errorf("GetSession().GetToken() got = %s, want %s", got.GetToken(), tt.want.Token)
+			}
+			if got.GetUserId() != tt.want.UserId {
+				t.Errorf("GetSession().GetUserId() got = %d, want %d", got.GetUserId(), tt.want.UserId)
+			}
+			if got.GetExpiredAt() != tt.want.ExpiredAt {
+				t.Errorf("GetSession().GetExpiredAt() got = %d, want %d", got.GetExpiredAt(), tt.want.ExpiredAt)
 			}
 		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
 	}
 }
 
