@@ -5,14 +5,16 @@ type (
 	ItemReward     interface {
 		GetId() int64
 		SetId(id int64)
+		GetUserId() int64
 		GetType() ItemRewardType
 		IsSent() bool
 	}
 
 	itemRewardImpl struct {
-		Id   int64
-		Type ItemRewardType
-		Sent bool
+		Id     int64
+		UserId int64
+		Type   ItemRewardType
+		Sent   bool
 	}
 )
 
@@ -29,6 +31,10 @@ func (m *itemRewardImpl) SetId(id int64) {
 	m.Id = id
 }
 
+func (m itemRewardImpl) GetUserId() int64 {
+	return m.UserId
+}
+
 func (m itemRewardImpl) GetType() ItemRewardType {
 	return m.Type
 }
@@ -37,10 +43,11 @@ func (m itemRewardImpl) IsSent() bool {
 	return m.Sent
 }
 
-func NewItemReward(itemType ItemRewardType, sent bool, id int64) ItemReward {
+func NewItemReward(userId int64, itemType ItemRewardType, sent bool, id int64) ItemReward {
 	return &itemRewardImpl{
-		Id:   id,
-		Type: itemType,
-		Sent: sent,
+		Id:     id,
+		UserId: userId,
+		Type:   itemType,
+		Sent:   sent,
 	}
 }

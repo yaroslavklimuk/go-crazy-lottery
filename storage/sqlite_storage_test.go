@@ -17,6 +17,19 @@ type (
 		UserId    int64
 		ExpiredAt int64
 	}
+	testUserDto struct {
+		Name     string
+		BancAcc  string
+		Address  string
+		Balance  int64
+		PswdHash string
+	}
+	testUserMoneyDto struct {
+		Id     int64
+		UserId int64
+		Amount int64
+		Sent   bool
+	}
 )
 
 func TestGetStorage(t *testing.T) {
@@ -97,6 +110,82 @@ func Test_createSqliteStorage(t *testing.T) {
 	}
 }
 
+func Test_sqliteStorageImpl_StoreSession(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    testSessionDto
+		wantErr bool
+	}{
+		{
+			name: "first case",
+			want: testSessionDto{
+				Token:     "74ry4378tfhurh78rty784",
+				UserId:    3534,
+				ExpiredAt: 16987694,
+			},
+		},
+	}
+
+	dbFile := "test_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			sess := dto.NewSession(tt.want.Token, tt.want.UserId, tt.want.ExpiredAt)
+
+			if err := sqliteStorage.StoreSession(sess); (err != nil) != tt.wantErr {
+				t.Errorf("StoreSession() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			row := conn.QueryRow("SELECT user_id, expired_at FROM sessions WHERE token = ?", tt.want.Token)
+			var userId, expiredAt int64
+			err := row.Scan(&userId, &expiredAt)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			if tt.want.UserId != userId || tt.want.ExpiredAt != expiredAt {
+				t.Error("Stored data is incorrect")
+				return
+			}
+		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	}
+}
+
 func Test_sqliteStorageImpl_GetSession(t *testing.T) {
 	type args struct {
 		token string
@@ -107,7 +196,6 @@ func Test_sqliteStorageImpl_GetSession(t *testing.T) {
 		want    testSessionDto
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "first case",
 			args: args{
@@ -122,7 +210,7 @@ func Test_sqliteStorageImpl_GetSession(t *testing.T) {
 		},
 	}
 
-	dbFile := "../lottery_db.sqlite"
+	dbFile := "test_db.sqlite"
 	conn, err := connect(dbFile)
 	if err != nil {
 		t.Error(err)
@@ -136,7 +224,7 @@ func Test_sqliteStorageImpl_GetSession(t *testing.T) {
 		return
 	}
 	m, err := migrate.NewWithDatabaseInstance(
-		"file:///../migrations/sqlite",
+		"file://../migrations/sqlite",
 		"ql",
 		driver,
 	)
@@ -145,14 +233,14 @@ func Test_sqliteStorageImpl_GetSession(t *testing.T) {
 		return
 	}
 
-	insertStmt, err := conn.Prepare("INSERT INTO sessions (token, user_id, expired_at) VALUES (?, ?, ?)")
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
 	for _, tt := range tests {
 		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		insertStmt, err := conn.Prepare("INSERT INTO sessions (token, user_id, expired_at) VALUES (?, ?, ?)")
 		if err != nil {
 			t.Error(err)
 			return
@@ -188,6 +276,374 @@ func Test_sqliteStorageImpl_GetSession(t *testing.T) {
 		}
 	}
 }
+
+func Test_sqliteStorageImpl_StoreUser(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    testUserDto
+		wantErr bool
+	}{
+		{
+			name: "first case",
+			want: testUserDto{
+				Name:     "5895f74895f45f",
+				BancAcc:  "5fk8490385kf490358",
+				Address:  "7c87j89457f4895k9058",
+				Balance:  12564,
+				PswdHash: "75j498574d3475d3w",
+			},
+		},
+	}
+
+	dbFile := "test_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			u := tt.want
+			user := dto.NewUser(0, u.Name, u.BancAcc, u.Address, u.Balance, u.PswdHash)
+
+			var id int64
+			if id, err = sqliteStorage.StoreUser(user); (err != nil) != tt.wantErr {
+				t.Errorf("StoreUser() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			row := conn.QueryRow("SELECT name, passwd, banc_acc, address, balance FROM users WHERE id = ?", id)
+			var name, passwd, bancAcc, address string
+			var balance int64
+			err = row.Scan(&name, &passwd, &bancAcc, &address, &balance)
+			if err != nil {
+				t.Error()
+				return
+			}
+
+			if u.Name != name {
+				t.Errorf("Name is incorrect. Want - %s, got  - %s\n", u.Name, name)
+			}
+			if u.BancAcc != bancAcc {
+				t.Errorf("BancAcc is incorrect. Want - %s, got  - %s\n", u.BancAcc, bancAcc)
+			}
+			if u.Address != address {
+				t.Errorf("Address is incorrect. Want - %s, got  - %s\n", u.Address, address)
+			}
+			if u.Balance != balance {
+				t.Errorf("Balance is incorrect. Want - %d, got  - %d\n", u.Balance, balance)
+			}
+			if u.PswdHash != passwd {
+				t.Errorf("PswdHash is incorrect. Want - %s, got  - %s\n", u.PswdHash, passwd)
+			}
+		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	}
+}
+
+func Test_sqliteStorageImpl_GetUserById(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    testUserDto
+		wantErr bool
+	}{
+		{
+			name: "first case",
+			want: testUserDto{
+				Name:     "89f384f389f34f3",
+				BancAcc:  "9834j9834fj3849fj39",
+				Address:  "8924j8934fj398fij3489f",
+				Balance:  12434,
+				PswdHash: "sd8ud89udf89fj8f9djf89sd",
+			},
+			wantErr: false,
+		},
+	}
+
+	dbFile := "test_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		stmt, err := conn.Prepare(
+			"INSERT INTO users (name, passwd, banc_acc, address, balance) VALUES (?, ?, ?, ?, ?)",
+		)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		u := tt.want
+		_, err = stmt.Exec(u.Name, u.PswdHash, u.BancAcc, u.Address, u.Balance)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sqliteStorage.GetUserById(1)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetSession() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got.GetName() != u.Name {
+				t.Errorf("GetUserById().GetName() got = %s, want %s", got.GetName(), u.Name)
+			}
+			if got.GetPswdHash() != u.PswdHash {
+				t.Errorf("GetUserById().GetPswdHash() got = %s, want %s", got.GetPswdHash(), u.PswdHash)
+			}
+			if got.GetBankAcc() != u.BancAcc {
+				t.Errorf("GetUserById().GetBankAcc() got = %s, want %s", got.GetBankAcc(), u.BancAcc)
+			}
+			if got.GetAddress() != u.Address {
+				t.Errorf("GetUserById().GetAddress() got = %s, want %s", got.GetAddress(), u.Address)
+			}
+			if got.GetBalance() != u.Balance {
+				t.Errorf("GetUserById().GetBalance() got = %d, want %d", got.GetBalance(), u.Balance)
+			}
+		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	}
+}
+
+func Test_sqliteStorageImpl_GetUserByName(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    testUserDto
+		wantErr bool
+	}{
+		{
+			name: "first case",
+			want: testUserDto{
+				Name:     "89f384f389f34f3",
+				BancAcc:  "9834j9834fj3849fj39",
+				Address:  "8924j8934fj398fij3489f",
+				Balance:  12434,
+				PswdHash: "sd8ud89udf89fj8f9djf89sd",
+			},
+			wantErr: false,
+		},
+	}
+
+	dbFile := "test_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		stmt, err := conn.Prepare(
+			"INSERT INTO users (name, passwd, banc_acc, address, balance) VALUES (?, ?, ?, ?, ?)",
+		)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		u := tt.want
+		_, err = stmt.Exec(u.Name, u.PswdHash, u.BancAcc, u.Address, u.Balance)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sqliteStorage.GetUserByName(u.Name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetSession() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got.GetName() != u.Name {
+				t.Errorf("GetUserById().GetName() got = %s, want %s", got.GetName(), u.Name)
+			}
+			if got.GetPswdHash() != u.PswdHash {
+				t.Errorf("GetUserById().GetPswdHash() got = %s, want %s", got.GetPswdHash(), u.PswdHash)
+			}
+			if got.GetBankAcc() != u.BancAcc {
+				t.Errorf("GetUserById().GetBankAcc() got = %s, want %s", got.GetBankAcc(), u.BancAcc)
+			}
+			if got.GetAddress() != u.Address {
+				t.Errorf("GetUserById().GetAddress() got = %s, want %s", got.GetAddress(), u.Address)
+			}
+			if got.GetBalance() != u.Balance {
+				t.Errorf("GetUserById().GetBalance() got = %d, want %d", got.GetBalance(), u.Balance)
+			}
+		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	}
+}
+
+func Test_sqliteStorageImpl_StoreUserMoneyReward(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    testUserMoneyDto
+		wantErr bool
+	}{
+		{
+			name: "first case",
+			want: testUserMoneyDto{
+				Id:     0,
+				UserId: 1245,
+				Amount: 143532,
+				Sent:   false,
+			},
+		},
+	}
+
+	dbFile := "test_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			reward := dto.NewMoneyReward(tt.want.UserId, tt.want.Amount, tt.want.Sent, tt.want.Id)
+			if _, err = sqliteStorage.StoreUserMoneyReward(reward); (err != nil) != tt.wantErr {
+				t.Errorf("StoreSession() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			row := conn.QueryRow("SELECT user_id, amount, sent FROM money_rewards WHERE id = ?", 1)
+			var userId, amount int64
+			var sent bool
+			err = row.Scan(&userId, &amount, &sent)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			if tt.want.UserId != userId {
+				t.Errorf("UserId is incorrect. Want - %d, got  - %d\n", tt.want.UserId, userId)
+			}
+			if tt.want.Amount != amount {
+				t.Errorf("Amount is incorrect. Want - %d, got  - %d\n", tt.want.Amount, amount)
+			}
+			if tt.want.Sent != sent {
+				t.Errorf("Sent is incorrect. Want - %v, got  - %v\n", tt.want.Sent, sent)
+			}
+		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	}
+}
+
+// #######################################
+
+// #######################################
 
 func Test_sqliteStorageImpl_GetUnprocessedItemsRewards(t *testing.T) {
 	type fields struct {
@@ -246,76 +702,6 @@ func Test_sqliteStorageImpl_GetUnprocessedMoneyRewards(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetUnprocessedMoneyRewards() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_sqliteStorageImpl_GetUserById(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
-	type args struct {
-		id int64
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    dto.User
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			got, err := s.GetUserById(tt.args.id)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetUserById() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetUserById() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_sqliteStorageImpl_GetUserByName(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
-	type args struct {
-		name string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    dto.User
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			got, err := s.GetUserByName(tt.args.name)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetUserByName() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetUserByName() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -449,77 +835,12 @@ func Test_sqliteStorageImpl_SetMoneyRewardsProcessed(t *testing.T) {
 	}
 }
 
-func Test_sqliteStorageImpl_StoreSession(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
-	type args struct {
-		sess dto.Session
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			if err := s.StoreSession(tt.args.sess); (err != nil) != tt.wantErr {
-				t.Errorf("StoreSession() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_sqliteStorageImpl_StoreUser(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
-	type args struct {
-		user dto.User
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    int64
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			got, err := s.StoreUser(tt.args.user)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("StoreUser() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("StoreUser() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_sqliteStorageImpl_StoreUserItemReward(t *testing.T) {
 	type fields struct {
 		dbFile string
 		conn   *sql.DB
 	}
 	type args struct {
-		base dto.Reward
 		item dto.ItemReward
 	}
 	tests := []struct {
@@ -536,38 +857,8 @@ func Test_sqliteStorageImpl_StoreUserItemReward(t *testing.T) {
 				dbFile: tt.fields.dbFile,
 				conn:   tt.fields.conn,
 			}
-			if err := s.StoreUserItemReward(tt.args.base, tt.args.item); (err != nil) != tt.wantErr {
+			if _, err := s.StoreUserItemReward(tt.args.item); (err != nil) != tt.wantErr {
 				t.Errorf("StoreUserItemReward() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_sqliteStorageImpl_StoreUserMoneyReward(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
-	type args struct {
-		base  dto.Reward
-		money dto.MoneyReward
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			if err := s.StoreUserMoneyReward(tt.args.base, tt.args.money); (err != nil) != tt.wantErr {
-				t.Errorf("StoreUserMoneyReward() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

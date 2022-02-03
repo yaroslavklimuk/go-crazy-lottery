@@ -58,12 +58,23 @@ func (s *sqliteStorageImpl) GetSession(token string) (dto.Session, error) {
 	return dto.NewSession(token, userId, expiredAt), nil
 }
 
-func (s *sqliteStorageImpl) GetUserMoneyRewards(userId int64) (int64, error) {
-	row := s.conn.QueryRow(
-		"SELECT SUM(mr.amount) FROM money_rewards as mr INNER JOIN rewards as r "+
-			"ON r.reward_id = mr.id AND r.type = \"?\" AND r.user_id = ?",
-		dto.Money, userId,
+func (s *sqliteStorageImpl) StoreUser(user dto.User) (int64, error) {
+	stmt, err := s.conn.Prepare(
+		"INSERT INTO users (name, passwd, banc_acc, address, balance) VALUES (?, ?, ?, ?, ?)",
 	)
+	if err != nil {
+		return 0, err
+	}
+	res, err := stmt.Exec(user.GetName(), user.GetPswdHash(), user.GetBankAcc(), user.GetAddress(), user.GetBalance())
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	return id, err
+}
+
+func (s *sqliteStorageImpl) GetUserMoneyRewards(userId int64) (int64, error) {
+	row := s.conn.QueryRow("SELECT SUM(amount) FROM money_rewards WHERE user_id = ?", userId)
 	var amount int64
 	err := row.Scan(&amount)
 	if err != nil {
@@ -72,31 +83,20 @@ func (s *sqliteStorageImpl) GetUserMoneyRewards(userId int64) (int64, error) {
 	return amount, nil
 }
 
-func (s *sqliteStorageImpl) StoreUserMoneyReward(base dto.Reward, money dto.MoneyReward) error {
-	stmtMoney, err := s.conn.Prepare("INSERT INTO money_rewards (amount) VALUES (?)")
+func (s *sqliteStorageImpl) StoreUserMoneyReward(reward dto.MoneyReward) (int64, error) {
+	stmtMoney, err := s.conn.Prepare("INSERT INTO money_rewards (user_id, amount) VALUES (?, ?)")
 	if err != nil {
-		return err
+		return 0, err
 	}
-	moneyRes, err := stmtMoney.Exec(money.GetAmount())
-	moneyId, err := moneyRes.LastInsertId()
+	res, err := stmtMoney.Exec(reward.GetUserId(), reward.GetAmount())
 	if err != nil {
-		return err
+		return 0, err
 	}
-
-	stmtBase, err := s.conn.Prepare("INSERT INTO rewards (reward_id, user_id, type) VALUES (?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	_, err = stmtBase.Exec(moneyId, base.GetUserId(), base.GetType())
-	return err
+	return res.LastInsertId()
 }
 
 func (s *sqliteStorageImpl) GetUserItemRewards(userId int64) (int64, error) {
-	row := s.conn.QueryRow(
-		"SELECT COUNT(ir.*) FROM item_rewards as ir INNER JOIN rewards as r "+
-			"ON r.reward_id = ir.id AND r.type = \"?\" AND r.user_id = ?",
-		dto.Item, userId,
-	)
+	row := s.conn.QueryRow("SELECT COUNT(*) FROM item_rewards WHERE user_id = ?", userId)
 	var count int64
 	err := row.Scan(&count)
 	if err != nil {
@@ -105,37 +105,30 @@ func (s *sqliteStorageImpl) GetUserItemRewards(userId int64) (int64, error) {
 	return count, nil
 }
 
-func (s *sqliteStorageImpl) StoreUserItemReward(base dto.Reward, item dto.ItemReward) error {
-	stmtItem, err := s.conn.Prepare("INSERT INTO item_rewards (type) VALUES (?)")
+func (s *sqliteStorageImpl) StoreUserItemReward(item dto.ItemReward) (int64, error) {
+	stmtItem, err := s.conn.Prepare("INSERT INTO item_rewards (user_id, type) VALUES (?, ?)")
 	if err != nil {
-		return err
+		return 0, err
 	}
-	itemRes, err := stmtItem.Exec(item.GetType())
-	itemId, err := itemRes.LastInsertId()
+	itemRes, err := stmtItem.Exec(item.GetUserId(), item.GetType())
 	if err != nil {
-		return err
+		return 0, err
 	}
-
-	stmtBase, err := s.conn.Prepare("INSERT INTO rewards (reward_id, user_id, type) VALUES (?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	_, err = stmtBase.Exec(itemId, base.GetUserId(), base.GetType())
-	return err
+	return itemRes.LastInsertId()
 }
 
 func (s *sqliteStorageImpl) GetUnprocessedMoneyRewards() ([]dto.MoneyReward, error) {
-	rows, err := s.conn.Query("SELECT id, amount FROM money_rewards WHERE sent = 0")
+	rows, err := s.conn.Query("SELECT id, user_id, amount FROM money_rewards WHERE sent = 0")
 	if err != nil {
 		return nil, err
 	}
-	var id, amount int64
+	var id, userId, amount int64
 	var result []dto.MoneyReward
 	for rows.Next() {
-		if err := rows.Scan(&id, &amount); err != nil {
+		if err := rows.Scan(&id, &userId, &amount); err != nil {
 			return nil, err
 		}
-		item := dto.NewMoneyReward(amount, false, id)
+		item := dto.NewMoneyReward(userId, amount, false, id)
 		result = append(result, item)
 	}
 	return result, err
@@ -156,18 +149,18 @@ func (s *sqliteStorageImpl) SetMoneyRewardsProcessed(ids []int64) error {
 }
 
 func (s *sqliteStorageImpl) GetUnprocessedItemsRewards() ([]dto.ItemReward, error) {
-	rows, err := s.conn.Query("SELECT id, type FROM item_rewards WHERE sent = 0")
+	rows, err := s.conn.Query("SELECT id, user_id, type FROM item_rewards WHERE sent = 0")
 	if err != nil {
 		return nil, err
 	}
-	var id int64
+	var id, userId int64
 	var itemType dto.ItemRewardType
 	var result []dto.ItemReward
 	for rows.Next() {
-		if err := rows.Scan(&id, &itemType); err != nil {
+		if err := rows.Scan(&id, &userId, &itemType); err != nil {
 			return nil, err
 		}
-		item := dto.NewItemReward(itemType, false, id)
+		item := dto.NewItemReward(userId, itemType, false, id)
 		result = append(result, item)
 	}
 	return result, err
@@ -185,21 +178,6 @@ func (s *sqliteStorageImpl) SetItemsRewardsProcessed(ids []int64) error {
 		}
 	}
 	return nil
-}
-
-func (s *sqliteStorageImpl) StoreUser(user dto.User) (int64, error) {
-	stmt, err := s.conn.Prepare(
-		"INSERT INTO users (name, passwd, banc_acc, address, balance) VALUES (?, ?, ?, ?, ?)",
-	)
-	if err != nil {
-		return 0, err
-	}
-	res, err := stmt.Exec(user.GetName(), user.GetPswdHash(), user.GetBankAcc(), user.GetAddress(), 0)
-	if err != nil {
-		return 0, err
-	}
-	id, err := res.LastInsertId()
-	return id, err
 }
 
 func (s *sqliteStorageImpl) GetUserById(id int64) (dto.User, error) {

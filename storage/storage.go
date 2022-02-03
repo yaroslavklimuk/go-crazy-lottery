@@ -8,10 +8,10 @@ type (
 		GetSession(token string) (dto.Session, error)
 
 		GetUserMoneyRewards(userId int64) (int64, error)
-		StoreUserMoneyReward(base dto.Reward, money dto.MoneyReward) error
+		StoreUserMoneyReward(money dto.MoneyReward) (int64, error)
 
 		GetUserItemRewards(userId int64) (int64, error)
-		StoreUserItemReward(base dto.Reward, item dto.ItemReward) error
+		StoreUserItemReward(item dto.ItemReward) (int64, error)
 
 		GetUnprocessedMoneyRewards() ([]dto.MoneyReward, error)
 		SetMoneyRewardsProcessed(ids []int64) error
