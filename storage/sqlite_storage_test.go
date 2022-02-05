@@ -641,6 +641,102 @@ func Test_sqliteStorageImpl_StoreUserMoneyReward(t *testing.T) {
 	}
 }
 
+func Test_sqliteStorageImpl_GetUserMoneyRewards(t *testing.T) {
+	tests := []struct {
+		name    string
+		stored  []testUserMoneyDto
+		userId  int64
+		want    int64
+		wantErr bool
+	}{
+		{
+			name: "first case",
+			stored: []testUserMoneyDto{
+				{
+					UserId: 123,
+					Amount: 124,
+					Sent:   false,
+				},
+				{
+					UserId: 124,
+					Amount: 125,
+					Sent:   false,
+				},
+				{
+					UserId: 123,
+					Amount: 126,
+					Sent:   false,
+				},
+			},
+			userId:  123,
+			want:    250,
+			wantErr: false,
+		},
+	}
+
+	dbFile := "test_db.sqlite"
+	conn, err := connect(dbFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sqliteStorage := &sqliteStorageImpl{conn: conn, dbFile: dbFile}
+
+	driver, err := sqlite3.WithInstance(conn, &sqlite3.Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../migrations/sqlite",
+		"ql",
+		driver,
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for _, tt := range tests {
+		err = m.Up()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		stmt, err := conn.Prepare("INSERT INTO money_rewards (user_id, amount, sent) VALUES (?, ?, ?)")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		for _, moneyDto := range tt.stored {
+			_, err = stmt.Exec(moneyDto.UserId, moneyDto.Amount, moneyDto.Sent)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sqliteStorage.GetUserMoneyRewards(tt.userId)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetSession() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetUserMoneyRewards() got = %d, want %d", got, tt.want)
+			}
+		})
+
+		err = m.Down()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+	}
+}
+
 // #######################################
 
 // #######################################
@@ -737,41 +833,6 @@ func Test_sqliteStorageImpl_GetUserItemRewards(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("GetUserItemRewards() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_sqliteStorageImpl_GetUserMoneyRewards(t *testing.T) {
-	type fields struct {
-		dbFile string
-		conn   *sql.DB
-	}
-	type args struct {
-		userId int64
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    int64
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &sqliteStorageImpl{
-				dbFile: tt.fields.dbFile,
-				conn:   tt.fields.conn,
-			}
-			got, err := s.GetUserMoneyRewards(tt.args.userId)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetUserMoneyRewards() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("GetUserMoneyRewards() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

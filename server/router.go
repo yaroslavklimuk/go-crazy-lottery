@@ -7,13 +7,14 @@ import (
 )
 
 func RegisterRoutes(st storage.Storage) {
-	http.HandleFunc("/register", makeRegisterHandler(st).ServeHTTP)
-	http.HandleFunc("/login", makeLoginHandler(st).ServeHTTP)
-	http.HandleFunc("/get-reward", checkAuthMiddleware(makeGetRewardHandler(st).ServeHTTP))
-	http.HandleFunc("/submit-reward", checkAuthMiddleware(makeSubmitRewardHandler(st).ServeHTTP))
-	http.HandleFunc("/", checkAuthMiddleware(makeIndexHandler(st).ServeHTTP))
+	handler := makeHttpHandler(st)
+	http.HandleFunc("/register", handler.Register)
+	http.HandleFunc("/login", handler.Login)
+	http.HandleFunc("/get-reward", checkAuthMiddleware(handler.GetReward))
+	http.HandleFunc("/submit-reward", checkAuthMiddleware(handler.SubmitReward))
+	http.HandleFunc("/", checkAuthMiddleware(handler.Index))
 }
 
 func RunServer() {
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8081", nil))
 }

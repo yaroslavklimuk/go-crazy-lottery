@@ -186,6 +186,9 @@ func (s *sqliteStorageImpl) GetUserById(id int64) (dto.User, error) {
 	var balance int64
 	err := row.Scan(&name, &passwd, &bancAcc, &address, &balance)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return dto.NewUser(id, name, bancAcc, address, balance, passwd), nil
@@ -197,6 +200,9 @@ func (s *sqliteStorageImpl) GetUserByName(name string) (dto.User, error) {
 	var id, balance int64
 	err := row.Scan(&id, &passwd, &bancAcc, &address, &balance)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return dto.NewUser(id, name, bancAcc, address, balance, passwd), nil

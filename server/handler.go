@@ -10,41 +10,26 @@ import (
 )
 
 type (
-	RandomRewardResponse struct {
-		TaskId string `json:"task_id"`
-	}
-
-	baseHttpHandler struct {
+	httpHandler struct {
 		storage storage.Storage
-	}
-	indexRequestHandler struct {
-		baseHttpHandler
-	}
-	registerRequestHandler struct {
-		baseHttpHandler
-	}
-	loginRequestHandler struct {
-		baseHttpHandler
-	}
-	getRewardRequestHandler struct {
-		baseHttpHandler
-	}
-	submitRewardRequestHandler struct {
-		baseHttpHandler
 	}
 )
 
-func (h *indexRequestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h *httpHandler) Index(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case "GET":
-		renderTemplate("./templates/index.html", writer, nil)
+		templates := []string{
+			"./templates/index.html",
+			"./templates/base.html",
+		}
+		renderTemplate(templates, writer, nil)
 	default:
 		http.Error(writer, "Sorry, only GET requests are supported.", 405)
 		return
 	}
 }
 
-func (h *registerRequestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h *httpHandler) Register(writer http.ResponseWriter, request *http.Request) {
 	if request.URL.Path != "/register" {
 		http.Error(writer, "404 not found.", http.StatusNotFound)
 		return
@@ -52,21 +37,39 @@ func (h *registerRequestHandler) ServeHTTP(writer http.ResponseWriter, request *
 
 	switch request.Method {
 	case "GET":
-		renderTemplate("./templates/register.html", writer, nil)
+		cookie, _ := request.Cookie("SESSION")
+		if cookie != nil {
+			ok, err := h.checkSession(cookie.Value, time.Now().Unix())
+			if err != nil {
+				renderError(writer, err.Error(), 500)
+				return
+			}
+			if ok == true {
+				writer.Header().Set("Location", "/")
+				writer.WriteHeader(302)
+				return
+			}
+		}
+
+		templates := []string{
+			"./templates/register.html",
+			"./templates/base.html",
+		}
+		renderTemplate(templates, writer, nil)
 	case "POST":
 		form := request.PostForm
-		user, err := h.storage.GetUserByName(form.Get("login"))
+		user, err := h.storage.GetUserByName(form.Get("name"))
 		if err != nil {
-			returnAjaxError(writer, err.Error(), 500)
+			renderError(writer, err.Error(), 500)
 			return
 		}
 		if user != nil {
-			returnAjaxError(writer, "User already exists", 400)
+			renderError(writer, "User already exists", 400)
 			return
 		}
 		newUser := dto.NewUser(
 			0,
-			form.Get("login"),
+			form.Get("name"),
 			form.Get("banc_acc"),
 			form.Get("address"),
 			0,
@@ -74,7 +77,7 @@ func (h *registerRequestHandler) ServeHTTP(writer http.ResponseWriter, request *
 		)
 		userId, err := h.storage.StoreUser(newUser)
 		if err != nil {
-			returnAjaxError(writer, err.Error(), 500)
+			renderError(writer, err.Error(), 500)
 			return
 		}
 		newUser.SetId(userId)
@@ -105,7 +108,7 @@ func (h *registerRequestHandler) ServeHTTP(writer http.ResponseWriter, request *
 	}
 }
 
-func (h *loginRequestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h *httpHandler) Login(writer http.ResponseWriter, request *http.Request) {
 	if request.URL.Path != "/login" {
 		http.Error(writer, "404 not found.", http.StatusNotFound)
 		return
@@ -113,7 +116,25 @@ func (h *loginRequestHandler) ServeHTTP(writer http.ResponseWriter, request *htt
 
 	switch request.Method {
 	case "GET":
-		renderTemplate("./templates/login.html", writer, nil)
+		cookie, _ := request.Cookie("SESSION")
+		if cookie != nil {
+			ok, err := h.checkSession(cookie.Value, time.Now().Unix())
+			if err != nil {
+				renderError(writer, err.Error(), 500)
+				return
+			}
+			if ok == true {
+				writer.Header().Set("Location", "/")
+				writer.WriteHeader(302)
+				return
+			}
+		}
+		
+		templates := []string{
+			"./templates/login.html",
+			"./templates/base.html",
+		}
+		renderTemplate(templates, writer, nil)
 	case "POST":
 		writer.Header().Set("Content-Type", "application/json")
 	default:
@@ -122,7 +143,7 @@ func (h *loginRequestHandler) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 }
 
-func (h *getRewardRequestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h *httpHandler) GetReward(writer http.ResponseWriter, request *http.Request) {
 	if request.URL.Path != "/get-reward" {
 		http.Error(writer, "404 not found.", http.StatusNotFound)
 		return
@@ -137,7 +158,7 @@ func (h *getRewardRequestHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 }
 
-func (h *submitRewardRequestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h *httpHandler) SubmitReward(writer http.ResponseWriter, request *http.Request) {
 	if request.URL.Path != "/submit-reward" {
 		http.Error(writer, "404 not found.", http.StatusNotFound)
 		return
@@ -152,41 +173,33 @@ func (h *submitRewardRequestHandler) ServeHTTP(writer http.ResponseWriter, reque
 	}
 }
 
-func makeIndexHandler(st storage.Storage) http.Handler {
-	return &indexRequestHandler{struct{ storage storage.Storage }{storage: st}}
+func makeHttpHandler(st storage.Storage) *httpHandler {
+	return &httpHandler{storage: st}
 }
 
-func makeRegisterHandler(st storage.Storage) http.Handler {
-	return &registerRequestHandler{struct{ storage storage.Storage }{storage: st}}
-}
-
-func makeLoginHandler(st storage.Storage) http.Handler {
-	return &loginRequestHandler{struct{ storage storage.Storage }{storage: st}}
-}
-
-func makeGetRewardHandler(st storage.Storage) http.Handler {
-	return &getRewardRequestHandler{struct{ storage storage.Storage }{storage: st}}
-}
-
-func makeSubmitRewardHandler(st storage.Storage) http.Handler {
-	return &submitRewardRequestHandler{struct{ storage storage.Storage }{storage: st}}
-}
-
-func renderTemplate(templName string, writer http.ResponseWriter, data interface{}) {
-	writer.Header().Set("Content-Type", "text/html")
-	ts, err := template.ParseFiles(templName)
+func renderTemplate(templates []string, writer http.ResponseWriter, data interface{}) {
+	ts, err := template.ParseFiles(templates...)
 	if err != nil {
-		http.Error(writer, "Internal Server Error", 500)
+		http.Error(writer, err.Error(), 500)
 		return
 	}
 
 	err = ts.Execute(writer, data)
 	if err != nil {
-		http.Error(writer, "Internal Server Error", 500)
+		http.Error(writer, err.Error(), 500)
 	}
 }
 
-func returnAjaxError(writer http.ResponseWriter, msg string, code int) {
+func renderError(writer http.ResponseWriter, msg string, code int) {
 	writer.Header().Set("Content-Type", "text/html")
 	http.Error(writer, msg, code)
+}
+
+func (h *httpHandler) checkSession(token string, timestamp int64) (bool, error) {
+	session, err := h.storage.GetSession(token)
+	if err != nil {
+		return false, err
+	}
+	ok := session.GetExpiredAt() > time.Now().Unix()
+	return ok, nil
 }
