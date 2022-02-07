@@ -74,10 +74,13 @@ func (s *sqliteStorageImpl) StoreUser(user dto.User) (int64, error) {
 }
 
 func (s *sqliteStorageImpl) GetUserMoneyRewards(userId int64) (int64, error) {
-	row := s.conn.QueryRow("SELECT SUM(amount) FROM money_rewards WHERE user_id = ?", userId)
+	row := s.conn.QueryRow("SELECT SUM(amount) FROM money_rewards WHERE user_id = ? GROUP BY user_id", userId)
 	var amount int64
 	err := row.Scan(&amount)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
 		return 0, err
 	}
 	return amount, nil
@@ -100,6 +103,9 @@ func (s *sqliteStorageImpl) GetUserItemRewards(userId int64) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
 		return 0, err
 	}
 	return count, nil

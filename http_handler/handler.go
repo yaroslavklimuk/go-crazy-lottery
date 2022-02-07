@@ -1,4 +1,4 @@
-package server
+package http_handler
 
 import (
 	"github.com/google/uuid"
@@ -13,16 +13,56 @@ type (
 	httpHandler struct {
 		storage storage.Storage
 	}
+	mainInfo struct {
+		Balance     int64
+		ItemsCount  int64
+		MoneyReward int64
+	}
 )
 
 func (h *httpHandler) Index(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case "GET":
-		templates := []string{
-			"./templates/index.html",
-			"./templates/base.html",
+		cookie, _ := request.Cookie("SESSION")
+		if cookie != nil {
+			session, err := h.storage.GetSession(cookie.Value)
+			if err != nil {
+				renderError(writer, err.Error(), 500)
+				return
+			}
+			if session.GetExpiredAt() > time.Now().Unix() {
+				user, err := h.storage.GetUserById(session.GetUserId())
+				if err != nil {
+					renderError(writer, err.Error(), 500)
+					return
+				}
+
+				money, err := h.storage.GetUserMoneyRewards(session.GetUserId())
+				if err != nil {
+					renderError(writer, err.Error(), 500)
+					return
+				}
+
+				items, err := h.storage.GetUserItemRewards(session.GetUserId())
+				if err != nil {
+					renderError(writer, err.Error(), 500)
+					return
+				}
+
+				templates := []string{
+					"./templates/index.html",
+					"./templates/base.html",
+				}
+				renderTemplate(templates, writer, mainInfo{
+					Balance:     user.GetBalance(),
+					ItemsCount:  items,
+					MoneyReward: money,
+				})
+				return
+			}
 		}
-		renderTemplate(templates, writer, nil)
+		writer.Header().Set("Location", "/login")
+		writer.WriteHeader(302)
 	default:
 		http.Error(writer, "Sorry, only GET requests are supported.", 405)
 		return
@@ -129,7 +169,7 @@ func (h *httpHandler) Login(writer http.ResponseWriter, request *http.Request) {
 				return
 			}
 		}
-		
+
 		templates := []string{
 			"./templates/login.html",
 			"./templates/base.html",
@@ -173,7 +213,16 @@ func (h *httpHandler) SubmitReward(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-func makeHttpHandler(st storage.Storage) *httpHandler {
+func (h *httpHandler) checkSession(token string, timestamp int64) (bool, error) {
+	session, err := h.storage.GetSession(token)
+	if err != nil {
+		return false, err
+	}
+	ok := session.GetExpiredAt() > timestamp
+	return ok, nil
+}
+
+func MakeHttpHandler(st storage.Storage) *httpHandler {
 	return &httpHandler{storage: st}
 }
 
@@ -193,13 +242,4 @@ func renderTemplate(templates []string, writer http.ResponseWriter, data interfa
 func renderError(writer http.ResponseWriter, msg string, code int) {
 	writer.Header().Set("Content-Type", "text/html")
 	http.Error(writer, msg, code)
-}
-
-func (h *httpHandler) checkSession(token string, timestamp int64) (bool, error) {
-	session, err := h.storage.GetSession(token)
-	if err != nil {
-		return false, err
-	}
-	ok := session.GetExpiredAt() > time.Now().Unix()
-	return ok, nil
 }
