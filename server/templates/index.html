@@ -1,17 +1,51 @@
 {{template "base" .}}
 
-{{define "title"}}Login{{end}}
+{{define "title"}}Get a reward{{end}}
 
 {{define "body"}}
-<form action="/login" method="post">
+<div>
+    <h4>Balance: {{.Balance}}</h4>
+</div>
+
+<div>
+    <h4>Reward items count: {{.ItemsCount}}</h4>
+</div>
+
+<div>
+    <h4>Real money reward: {{.MoneyReward}}</h4>
+</div>
+
+<form id="get-reward-form" action="/get-reward" method="post">
     <div class="container">
-        <label for="login"><b>Login</b></label>
-        <input type="text" placeholder="Enter login" name="login" id="login" required>
-
-        <label for="pswd"><b>Password</b></label>
-        <input type="password" placeholder="Enter password" name="pswd" id="pswd" required>
-
-        <button type="submit">Login</button>
+        <label for="get-reward-btn"><b>Request a reward</b></label><br/>
+        <button id="get-reward-btn" type="submit">Request a reward</button>
     </div>
 </form>
+<div id="submit-reward" class="modal">
+    <p id="reward-tag">Here is your reward: </p>
+    <a href="#" rel="modal:close">Submit</a>
+    <p>or</p>
+    <a href="#" rel="modal:close">Dismiss</a>
+</div>
+
+<script>
+    $("#get-reward-form").submit(function(e) {
+        e.preventDefault();
+        let form = $(this);
+        let actionUrl = form.attr('action');
+        $.ajax({
+            type: "POST",
+            url: actionUrl,
+            data: form.serialize(),
+            success: function(data)
+            {
+                $("#submit-reward").modal({
+                    escapeClose: false,
+                    clickClose: false,
+                    showClose: false
+                });
+            }
+        });
+    });
+</script>
 {{end}}
