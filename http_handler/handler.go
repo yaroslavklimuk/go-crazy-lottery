@@ -1,10 +1,10 @@
 package http_handler
 
 import (
-	"github.com/google/uuid"
 	"github.com/yaroslavklimuk/crazy-lottery/dto"
 	"github.com/yaroslavklimuk/crazy-lottery/storage"
 	"html/template"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -122,26 +122,7 @@ func (h *httpHandler) Register(writer http.ResponseWriter, request *http.Request
 		}
 		newUser.SetId(userId)
 		sessExpireTime := time.Now().Add(time.Hour * 24)
-		newSess := dto.NewSession(
-			uuid.New().String(),
-			userId,
-			sessExpireTime.Unix(),
-		)
-		err = h.storage.StoreSession(newSess)
-		if err == nil {
-			http.SetCookie(writer, &http.Cookie{
-				Name:     "SESSION",
-				Value:    newSess.GetToken(),
-				Path:     "/",
-				Domain:   request.Host,
-				Expires:  sessExpireTime,
-				Secure:   false,
-				HttpOnly: true,
-				SameSite: http.SameSiteDefaultMode,
-			})
-		}
-		writer.Header().Set("Location", "/")
-		writer.WriteHeader(302)
+		h.createSessionAndRedirect(writer, user.GetId(), sessExpireTime)
 	default:
 		http.Error(writer, "Sorry, only GET or POST requests are supported.", 405)
 		return
@@ -176,7 +157,27 @@ func (h *httpHandler) Login(writer http.ResponseWriter, request *http.Request) {
 		}
 		renderTemplate(templates, writer, nil)
 	case "POST":
-		writer.Header().Set("Content-Type", "application/json")
+		cookie, _ := request.Cookie("SESSION")
+		if cookie != nil {
+			ok, err := h.checkSession(cookie.Value, time.Now().Unix())
+			if err != nil {
+				renderError(writer, err.Error(), 500)
+				return
+			}
+			if ok == true {
+				writer.Header().Set("Location", "/")
+				writer.WriteHeader(302)
+				return
+			}
+		}
+		form := request.PostForm
+		user, err := h.storage.GetUserByName(form.Get("name"))
+		if err != nil {
+			renderError(writer, err.Error(), 500)
+			return
+		}
+		sessExpireTime := time.Now().Add(time.Hour * 24)
+		h.createSessionAndRedirect(writer, user.GetId(), sessExpireTime)
 	default:
 		http.Error(writer, "Sorry, only GET or POST requests are supported.", 405)
 		return
@@ -191,7 +192,7 @@ func (h *httpHandler) GetReward(writer http.ResponseWriter, request *http.Reques
 
 	switch request.Method {
 	case "POST":
-		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(200)
 	default:
 		http.Error(writer, "Sorry, only POST requests are supported.", 405)
 		return
@@ -222,6 +223,31 @@ func (h *httpHandler) checkSession(token string, timestamp int64) (bool, error) 
 	return ok, nil
 }
 
+func (h *httpHandler) createSessionAndRedirect(writer http.ResponseWriter, userId int64, sessExpireTime time.Time) {
+	newSess := dto.NewSession(
+		randStringBytes(20),
+		userId,
+		sessExpireTime.Unix(),
+	)
+	err := h.storage.StoreSession(newSess)
+	if err != nil {
+		renderError(writer, err.Error(), 500)
+		return
+	}
+	http.SetCookie(writer, &http.Cookie{
+		Name:  "SESSION",
+		Value: newSess.GetToken(),
+		Path:  "/",
+		//Domain:   request.Host,
+		Expires:  sessExpireTime,
+		Secure:   false,
+		HttpOnly: true,
+		SameSite: http.SameSiteDefaultMode,
+	})
+	writer.Header().Set("Location", "/")
+	writer.WriteHeader(302)
+}
+
 func MakeHttpHandler(st storage.Storage) *httpHandler {
 	return &httpHandler{storage: st}
 }
@@ -242,4 +268,14 @@ func renderTemplate(templates []string, writer http.ResponseWriter, data interfa
 func renderError(writer http.ResponseWriter, msg string, code int) {
 	writer.Header().Set("Content-Type", "text/html")
 	http.Error(writer, msg, code)
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
