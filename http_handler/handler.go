@@ -192,7 +192,31 @@ func (h *httpHandler) GetReward(writer http.ResponseWriter, request *http.Reques
 
 	switch request.Method {
 	case "POST":
-		writer.WriteHeader(200)
+		cookie, _ := request.Cookie("SESSION")
+		if cookie != nil {
+			session, err := h.storage.GetSession(cookie.Value)
+			if err != nil {
+				http.Error(writer, err.Error(), 500)
+				return
+			}
+			if session.GetExpiredAt() > time.Now().Unix() {
+				user, err := h.storage.GetUserById(session.GetUserId())
+				if err != nil {
+					http.Error(writer, err.Error(), 500)
+					return
+				}
+
+				rewardType := rand.Intn(3)
+				switch rewardType {
+				case 0:
+				case 1:
+				case 2:
+
+				}
+				return
+			}
+		}
+		http.Error(writer, "Unauthorized access", 403)
 	default:
 		http.Error(writer, "Sorry, only POST requests are supported.", 405)
 		return
