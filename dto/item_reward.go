@@ -1,8 +1,21 @@
 package dto
 
+import (
+	"fmt"
+	"math/rand"
+)
+
+const (
+	PhysItemRewardType                = "item"
+	BicycleItem        ItemRewardType = "bicycle"
+	CrutchItem         ItemRewardType = "crutch"
+	MaxItems                          = 5
+)
+
 type (
 	ItemRewardType string
 	ItemReward     interface {
+		SerializableReward
 		GetId() int64
 		SetId(id int64)
 		GetUserId() int64
@@ -16,11 +29,6 @@ type (
 		Type   ItemRewardType
 		Sent   bool
 	}
-)
-
-const (
-	BicycleItem ItemRewardType = "bicycle"
-	CrutchItem  ItemRewardType = "crutch"
 )
 
 func (m itemRewardImpl) GetId() int64 {
@@ -43,11 +51,24 @@ func (m itemRewardImpl) IsSent() bool {
 	return m.Sent
 }
 
+func (m itemRewardImpl) Serialize() string {
+	return fmt.Sprintf("{\"type\":\"%s\",\"kind\":%s}", PhysItemRewardType, m.Type)
+}
+
 func NewItemReward(userId int64, itemType ItemRewardType, sent bool, id int64) ItemReward {
 	return &itemRewardImpl{
 		Id:     id,
 		UserId: userId,
 		Type:   itemType,
 		Sent:   sent,
+	}
+}
+
+func GenerateItemType() ItemRewardType {
+	t := rand.Intn(2)
+	if t == 0 {
+		return BicycleItem
+	} else {
+		return CrutchItem
 	}
 }

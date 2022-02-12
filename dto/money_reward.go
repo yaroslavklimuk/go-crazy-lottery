@@ -1,7 +1,18 @@
 package dto
 
+import (
+	"fmt"
+	"math/rand"
+)
+
+const (
+	MoneyRewardType = "money"
+	MaxMoney        = 1000
+)
+
 type (
 	MoneyReward interface {
+		SerializableReward
 		GetId() int64
 		SetId(id int64)
 		GetUserId() int64
@@ -37,6 +48,10 @@ func (m moneyRewardImpl) IsSent() bool {
 	return m.Sent
 }
 
+func (m moneyRewardImpl) Serialize() string {
+	return fmt.Sprintf("{\"type\":\"%s\",\"amount\":%d}", MoneyRewardType, m.Amount)
+}
+
 func NewMoneyReward(userId int64, amount int64, sent bool, id int64) MoneyReward {
 	return &moneyRewardImpl{
 		Id:     id,
@@ -44,4 +59,8 @@ func NewMoneyReward(userId int64, amount int64, sent bool, id int64) MoneyReward
 		Amount: amount,
 		Sent:   sent,
 	}
+}
+
+func GenerateMoneyAmount(limit int64) int64 {
+	return rand.Int63n(limit)
 }

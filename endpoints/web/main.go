@@ -4,14 +4,15 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/yaroslavklimuk/crazy-lottery/server"
 	"github.com/yaroslavklimuk/crazy-lottery/storage"
+	"os"
 )
 
 func main() {
-	env, err := godotenv.Read(".env")
+	err := godotenv.Load()
 	if err != nil {
 		panic(err)
 	}
-	dbFile := env["DB_FILE"]
+	dbFile := os.Getenv("DB_FILE")
 	dataStorage, err := storage.GetStorage(dbFile)
 	if err != nil {
 		panic(err)

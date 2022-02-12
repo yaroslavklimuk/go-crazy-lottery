@@ -6,6 +6,8 @@ import (
 	"html/template"
 	"math/rand"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 )
 
@@ -207,12 +209,64 @@ func (h *httpHandler) GetReward(writer http.ResponseWriter, request *http.Reques
 				}
 
 				rewardType := rand.Intn(3)
-				switch rewardType {
-				case 0:
-				case 1:
-				case 2:
-
+				if rewardType == 0 {
+					var maxMoney int64
+					money, err := h.storage.GetUserMoneyRewards(session.GetUserId())
+					if err != nil {
+						renderError(writer, err.Error(), 500)
+						return
+					}
+					envMax, ok := os.LookupEnv("MAX_MONEY")
+					if !ok {
+						maxMoney = dto.MaxMoney
+					} else {
+						maxMoney, err = strconv.ParseInt(envMax, 10, 64)
+					}
+					moneyLimit := maxMoney - money
+					if moneyLimit > 0 {
+						reward := dto.NewMoneyReward(user.GetId(), dto.GenerateMoneyAmount(moneyLimit), false, 0)
+						writer.Header().Set("Content-Type", "application/json")
+						writer.WriteHeader(200)
+						_, err = writer.Write([]byte(reward.Serialize()))
+						if err != nil {
+							http.Error(writer, err.Error(), 500)
+						}
+						return
+					}
 				}
+				if rewardType == 1 {
+					var maxItems int64
+					items, err := h.storage.GetUserItemRewards(session.GetUserId())
+					if err != nil {
+						renderError(writer, err.Error(), 500)
+						return
+					}
+					envMax, ok := os.LookupEnv("MAX_ITEMS")
+					if !ok {
+						maxItems = dto.MaxItems
+					} else {
+						maxItems, err = strconv.ParseInt(envMax, 10, 64)
+					}
+					itemsLimit := maxItems - items
+					if itemsLimit > 0 {
+						reward := dto.NewItemReward(user.GetId(), dto.GenerateItemType(), false, 0)
+						writer.Header().Set("Content-Type", "application/json")
+						writer.WriteHeader(200)
+						_, err = writer.Write([]byte(reward.Serialize()))
+						if err != nil {
+							http.Error(writer, err.Error(), 500)
+						}
+						return
+					}
+				}
+
+				reward := dto.NewBonusReward(user.GetId(), dto.GenerateBonusAmount(500))
+				writer.Header().Set("Content-Type", "application/json")
+				_, err = writer.Write([]byte(reward.Serialize()))
+				if err != nil {
+					http.Error(writer, err.Error(), 500)
+				}
+
 				return
 			}
 		}
