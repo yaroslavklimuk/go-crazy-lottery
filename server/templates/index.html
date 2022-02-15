@@ -21,25 +21,33 @@
         <button id="get-reward-btn" type="submit">Request a reward</button>
     </div>
 </form>
-<div id="submit-reward" class="modal">
-    <p id="reward-tag">Here is your reward: </p>
-    <a href="#" rel="modal:close">Submit</a>
+<div id="submit-reward-modal" class="modal">
+    <p id="reward-tag"></p>
+    <button id="submit-reward-btn">Submit</button>
     <p>or</p>
     <a href="#" rel="modal:close">Dismiss</a>
 </div>
 
 <script>
+    const rewardPrefix = "Here is your reward: ";
+    var reward = null
     $("#get-reward-form").submit(function(e) {
         e.preventDefault();
+        $("#reward-tag").innerHTML = "";
+
         let form = $(this);
         let actionUrl = form.attr('action');
         $.ajax({
             type: "POST",
             url: actionUrl,
-            data: form.serialize(),
+            xhrFields: {
+                withCredentials: true
+            },
             success: function(data)
             {
-                $("#submit-reward").modal({
+                reward = data
+                $("#reward-tag").text(rewardPrefix + reward.type + " - " + reward.amount);
+                $("#submit-reward-modal").modal({
                     escapeClose: false,
                     clickClose: false,
                     showClose: false
@@ -47,5 +55,22 @@
             }
         });
     });
+    $("#submit-reward-btn").click(function() {
+        let actionUrl = "/submit-reward"
+        $.ajax({
+            type: "POST",
+            url: actionUrl,
+            data: reward,
+            xhrFields: {
+                withCredentials: true
+            },
+            success: function(data)
+            {
+                console.dir(data);
+                $("#submit-reward-modal").modal("hide");
+                reward = null;
+            }
+        });
+    })
 </script>
 {{end}}

@@ -20,6 +20,7 @@ type (
 		SetItemsRewardsProcessed(ids []int64) error
 
 		StoreUser(user dto.User) (int64, error)
+		UpdateBalance(userId int64, sum int) error
 		GetUserById(id int64) (dto.User, error)
 		GetUserByName(name string) (dto.User, error)
 	}

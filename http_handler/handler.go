@@ -20,6 +20,10 @@ type (
 		ItemsCount  int64
 		MoneyReward int64
 	}
+	rawReward struct {
+		Type string                 `json:"type"`
+		X    map[string]interface{} `json:"-"`
+	}
 )
 
 func (h *httpHandler) Index(writer http.ResponseWriter, request *http.Request) {
@@ -208,6 +212,7 @@ func (h *httpHandler) GetReward(writer http.ResponseWriter, request *http.Reques
 					return
 				}
 
+				rand.Seed(time.Now().Unix())
 				rewardType := rand.Intn(3)
 				if rewardType == 0 {
 					var maxMoney int64
@@ -285,7 +290,63 @@ func (h *httpHandler) SubmitReward(writer http.ResponseWriter, request *http.Req
 
 	switch request.Method {
 	case "POST":
-		writer.Header().Set("Content-Type", "application/json")
+		cookie, _ := request.Cookie("SESSION")
+		if cookie != nil {
+			session, err := h.storage.GetSession(cookie.Value)
+			if err != nil {
+				http.Error(writer, err.Error(), 500)
+				return
+			}
+			if session.GetExpiredAt() > time.Now().Unix() {
+				rewardType := request.FormValue("type")
+				rawRewardAmount := request.FormValue("amount")
+
+				writer.WriteHeader(200)
+				_, err = writer.Write([]byte(rewardType + " " + rawRewardAmount))
+				if err != nil {
+					http.Error(writer, err.Error(), 500)
+				}
+
+				if rewardType == dto.MoneyRewardType {
+					rewardAmount, err := strconv.ParseInt(rawRewardAmount, 10, 16)
+					if err != nil {
+						http.Error(writer, err.Error(), 400)
+						return
+					}
+					reward := dto.NewMoneyReward(session.GetUserId(), rewardAmount, false, 0)
+					_, err = h.storage.StoreUserMoneyReward(reward)
+					if err != nil {
+						http.Error(writer, err.Error(), 500)
+						return
+					}
+				} else if rewardType == dto.PhysItemRewardType {
+					rewardKind := dto.ItemRewardType(rawRewardAmount)
+					if rewardKind != dto.BicycleItem && rewardKind != dto.CrutchItem {
+						http.Error(writer, "invalid type of item reward", 400)
+						return
+					}
+					reward := dto.NewItemReward(session.GetUserId(), rewardKind, false, 0)
+					_, err = h.storage.StoreUserItemReward(reward)
+					if err != nil {
+						http.Error(writer, err.Error(), 500)
+						return
+					}
+				} else if rewardType == dto.BonusRewardType {
+					rewardAmount, err := strconv.Atoi(rawRewardAmount)
+					if err != nil {
+						http.Error(writer, err.Error(), 400)
+						return
+					}
+					err = h.storage.UpdateBalance(session.GetUserId(), rewardAmount)
+					if err != nil {
+						http.Error(writer, err.Error(), 400)
+						return
+					}
+				}
+				return
+			}
+		}
+		http.Error(writer, "Unauthorized access", 403)
 	default:
 		http.Error(writer, "Sorry, only POST requests are supported.", 405)
 		return
@@ -303,13 +364,13 @@ func (h *httpHandler) checkSession(token string, timestamp int64) (bool, error) 
 
 func (h *httpHandler) createSessionAndRedirect(writer http.ResponseWriter, userId int64, sessExpireTime time.Time) {
 	newSess := dto.NewSession(
-		randStringBytes(20),
+		randStringBytes(20, sessExpireTime.Unix()),
 		userId,
 		sessExpireTime.Unix(),
 	)
 	err := h.storage.StoreSession(newSess)
 	if err != nil {
-		renderError(writer, err.Error(), 500)
+		renderError(writer, err.Error()+" ::: "+newSess.GetToken(), 500)
 		return
 	}
 	http.SetCookie(writer, &http.Cookie{
@@ -350,8 +411,9 @@ func renderError(writer http.ResponseWriter, msg string, code int) {
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-func randStringBytes(n int) string {
+func randStringBytes(n int, t int64) string {
 	b := make([]byte, n)
+	rand.Seed(t)
 	for i := range b {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}

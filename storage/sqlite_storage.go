@@ -73,6 +73,15 @@ func (s *sqliteStorageImpl) StoreUser(user dto.User) (int64, error) {
 	return id, err
 }
 
+func (s *sqliteStorageImpl) UpdateBalance(userId int64, sum int) error {
+	stmt, err := s.conn.Prepare("UPDATE users SET balance = balance + ? WHERE id = ?;")
+	if err != nil {
+		return err
+	}
+	_, err = stmt.Exec(sum, userId)
+	return err
+}
+
 func (s *sqliteStorageImpl) GetUserMoneyRewards(userId int64) (int64, error) {
 	row := s.conn.QueryRow("SELECT SUM(amount) FROM money_rewards WHERE user_id = ? GROUP BY user_id", userId)
 	var amount int64

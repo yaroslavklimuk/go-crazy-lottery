@@ -52,7 +52,7 @@ func (m itemRewardImpl) IsSent() bool {
 }
 
 func (m itemRewardImpl) Serialize() string {
-	return fmt.Sprintf("{\"type\":\"%s\",\"kind\":%s}", PhysItemRewardType, m.Type)
+	return fmt.Sprintf("{\"type\":\"%s\",\"amount\":\"%s\"}", PhysItemRewardType, m.Type)
 }
 
 func NewItemReward(userId int64, itemType ItemRewardType, sent bool, id int64) ItemReward {
