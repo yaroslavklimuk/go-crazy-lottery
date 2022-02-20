@@ -8,29 +8,29 @@
 </div>
 
 <div>
-    <h4>Reward items count: {{.ItemsCount}}</h4>
+    <h4>Solid items: {{.ItemsCount}}</h4>
 </div>
 
 <div>
-    <h4>Real money reward: {{.MoneyReward}}</h4>
+    <h4>Real money: {{.MoneyReward}}</h4>
 </div>
 
 <form id="get-reward-form" action="/get-reward" method="post">
     <div class="container">
-        <label for="get-reward-btn"><b>Request a reward</b></label><br/>
-        <button id="get-reward-btn" type="submit">Request a reward</button>
+        <label for="get-reward-btn"><b>Don't touch</b></label><br/>
+        <button id="get-reward-btn" type="submit"><h1>THE BUTTON</h1></button>
     </div>
 </form>
 <div id="submit-reward-modal" class="modal">
     <p id="reward-tag"></p>
-    <button id="submit-reward-btn">Submit</button>
+    <a href="#" id="submit-reward-btn">Submit</a>
     <p>or</p>
     <a href="#" rel="modal:close">Dismiss</a>
 </div>
 
 <script>
     const rewardPrefix = "Here is your reward: ";
-    var reward = null
+    let reward = null;
     $("#get-reward-form").submit(function(e) {
         e.preventDefault();
         $("#reward-tag").innerHTML = "";
@@ -66,9 +66,7 @@
             },
             success: function(data)
             {
-                console.dir(data);
-                $("#submit-reward-modal").modal("hide");
-                reward = null;
+                window.location = "/"
             }
         });
     })
